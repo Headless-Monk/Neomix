@@ -1,5 +1,11 @@
 #include <iostream>
 #include <ctype.h>
+#include <vector>
+#include <stdlib.h>
+#include "ia.cpp"
+
+#include <cstdio>
+#include <ctime>
 
 using namespace std;
 
@@ -48,16 +54,23 @@ char symboleDe(int j)
 */
 void afficherPlateau(const Grille& gr)
 {
-  cout << ".";
+
+
+  cout << ".|";
   for(int i=1; i<=NDIM; i++)
-    cout << i;
+    cout << i << "|";
   cout << endl;
 	for(int j = 0; j < NDIM; ++j)
 	{
-    cout << j+1;
+    cout << j+1 << "|";
 		for (int k = 0; k < NDIM; ++k)
 		{
-			cout << symboleDe(gr[j][k]);
+			if(gr[j][k]==1)
+				cout << "\033[1;32m" << symboleDe(gr[j][k]) << "\033[0m" << "|";
+			else if(gr[j][k]==2)
+				cout << "\033[1;31m" << symboleDe(gr[j][k]) << "\033[0m" << "|";
+			else
+				cout << symboleDe(gr[j][k]) << "|";
 		}
 		cout << endl;
 	}
@@ -84,8 +97,8 @@ bool coordsValides(const Grille& gr, Case &pion)
 }
 
 /**
-  Détecte les cases jouables par le joueur après l'initialisation du plateau
-  Le traitement d'effectue sur tout le tableau
+  Détecte les cases jouables par le joueur après l'initialisation du plateau, le traitement d'effectue sur tout le tableau
+	@param[in,out] gr - Une grille
 */
 void initCasesJouables(Grille &gr)
 {
@@ -102,8 +115,9 @@ void initCasesJouables(Grille &gr)
 }
 
 /**
-  Détecte les cases jouables lorsque la partie à commencé
-  Le traitement s'effectue uniquement sur le dernier pion placé
+  Détecte les cases jouables, Le traitement s'effectue uniquement sur le dernier pion placé
+	@param[in,out] gr - Une grille
+	@param[in] pion - Un pion
 */
 void casesJouables(Grille &gr, Case &pion)
 {
@@ -116,32 +130,90 @@ void casesJouables(Grille &gr, Case &pion)
           gr[pion.x+k][pion.y+l] = 3;
 }
 
+/**
+  Appel de la fonction ia qui détemrine le meilleur coup à jouer
+	@param[in,out] gr - Une grille
+	@param[in] pion - Un pion
+	@param[in] quiJoue - Un joueur
+*/
+void ordinateur(Grille &gr, Case &pion, const int &quiJoue)
+{
+	int x = 0;
+	int y = 0;
+
+	ia(x, y, gr, quiJoue);
+
+	pion.x = x;
+	pion.y = y;
+	gr[pion.x][pion.y] = quiJoue;
+}
 
 /**
-	Résoud un tour
+  Le joueur choisi les coordonnées à jouer
+	@param[in] quiJoue -  Un joueur
+	@param[in,out] gr - Une grille
+	@param[in] pion - Un pion
+*/
+void joueur(const int &quiJoue, Grille &gr, Case &pion)
+{
+	int x, y;
+
+	do
+	{
+		cout << endl << "Joueur " << quiJoue << " Quelle position ? " << endl << "x : ";
+		cin >> x;
+		pion.x = x-1;
+		cout << "y : ";
+		cin >> y;
+		pion.y = y-1;
+		cout << endl;
+	} while(coordsValides(gr, pion) == false);
+
+	gr[pion.x][pion.y] = quiJoue;
+}
+
+
+/**
+	Appelle le prochain joueur à jouer (Ordinateur ou joueur réel)
 	@param[in] quiJoue - Un joueur
 	@param[in] gr - Une grille
+	@param[in] pion - Un pion
+	@param[in] typePartie - Un type de partie
 */
-void jouer(int& quiJoue, Grille& gr, Case &pion)
+void jouer(int& quiJoue, Grille& gr, Case &pion, int &typePartie)
 {
     int x, y;
 
     casesJouables(gr, pion);
     afficherPlateau(gr);
 
-		do
-		{
-			cout << endl << "Joueur " << quiJoue << " Quelle position ? " << endl << "x : ";
-			cin >> x;
-      pion.x = x-1;
-			cout << "y : ";
-      cin >> y;
-      pion.y = y-1;
-			cout << endl;
-		} while(coordsValides(gr, pion) == false);
+    switch(typePartie)
+    {
+      case 1 :
+        ordinateur(gr, pion, quiJoue);
+        break;
+      case 2 :
+        if(quiJoue==2)
+        {
+          ordinateur(gr, pion, quiJoue);
+        }
 
-    gr[pion.x][pion.y] = quiJoue;
+        if(quiJoue==1)
+        {
+          joueur(quiJoue, gr, pion);
+        }
+				break;
+			case 3 :
+				joueur(quiJoue, gr, pion);
+				break;
+			default :
+				break;
+    }
+
+
 }
+
+
 
 /**
 		Donne la main au joueur suivant
@@ -165,6 +237,8 @@ int joueurSuivant(const int& quiJoue)
 
 /**
   Teste si un carré est présent sur la grille
+	@param[in] gr - Une grille
+	@param[out] gagnant - Un gagnant
 */
 bool carre(const Grille &gr, int &gagnant)
 {
@@ -183,59 +257,126 @@ bool carre(const Grille &gr, int &gagnant)
 
 /**
   Teste si une ligne entourée est présente
+	@param[in] gr - Une grille
+	@param[out] gagnant - Un gagnant
 */
 bool ligne(const Grille &gr, int &gagnant)
 {
   int x, y, aux, naux;
 
-  for(x=0; x<NDIM; x++)
-    for(y=0; y<NDIM; y++)
-    {
-      if(gr[x][y]==1 || gr[x][y]==2)
-      {
-        aux = gr[x][y];
+	//test de victoire sur les colones
+	  for(x=0; x<4; x++)
+	    for(y=0; y<NDIMia; y++)
+	    {
+	      if(gr[x][y]==1 || gr[x][y]==2)
+	      {
+	        aux = gr[x][y];
 
-        switch(aux)
-        {
-          case 1 :
-            naux = 2;
-            break;
-          case 2 :
-            naux = 1;
-            break;
-          default :
-            break;
-        }
+	        switch(aux)
+	        {
+	          case 1 :
+	            naux = 2;
+	            break;
+	          case 2 :
+	            naux = 1;
+	            break;
+	          default :
+	            break;
+	        }
 
-        if(gr[x][y+1]==aux && gr[x][y+2]==aux)
-          if(gr[x][y-1]==naux && gr[x][y+3]==naux)
-          {
-            gagnant = gr[x][y-1];
-            return true;
-          }
+	        if(gr[x+1][y]==naux && gr[x+2][y]==naux && gr[x+3][y]==naux && gr[x+4][y]==aux)
+					{
+					  gagnant = aux;
+						return true;
+					}
+	      }
+	    }
 
-        if(gr[x-1][y]==aux && gr[x-2][y]==aux)
-          if(gr[x+1][y]==naux && gr[x-3][y]==naux)
-          {
-            gagnant = gr[x+1][y];
-            return true;
-          }
+	//test de victoire sur les lignes
+	    for(x=0; x<NDIMia; x++)
+	      for(y=0; y<4; y++)
+	      {
+	        if(gr[x][y]==1 || gr[x][y]==2)
+	        {
+	          aux = gr[x][y];
 
-        if(gr[x-1][y+1]==aux && gr[x-2][y+2]==aux)
-          if(gr[x+1][y-1]==naux && gr[x-3][y+3]==naux)
-          {
-            gagnant = gr[x+1][y-1];
-            return true;
-          }
+	          switch(aux)
+	          {
+	            case 1 :
+	              naux = 2;
+	              break;
+	            case 2 :
+	              naux = 1;
+	              break;
+	            default :
+	              break;
+	          }
 
-        if(gr[x-1][y-1]==aux && gr[x-2][y-2]==aux)
-          if(gr[x+1][y+1]==naux && gr[x-3][y-3]==naux)
-          {
-            gagnant = gr[x+1][y+1];
-            return true;
-          }
-      }
-    }
+	          if(gr[x][y+1]==naux && gr[x][y+2]==naux && gr[x][y+3]==naux && gr[x][y+4]==aux)
+						{
+						  gagnant = aux;
+							return true;
+						}
+	        }
+	      }
+
+	//test victoire diagonale droite
+	    for(x=0; x<4; x++)
+	      for(y=0; y<4; y++)
+	      {
+	        if(gr[x][y]==1 || gr[x][y]==2)
+	        {
+	          aux = gr[x][y];
+
+	          switch(aux)
+	          {
+	            case 1 :
+	              naux = 2;
+	              break;
+	            case 2 :
+	              naux = 1;
+	              break;
+	            default :
+	              break;
+	          }
+
+	          if(gr[x+1][y+1]==naux && gr[x+2][y+2]==naux && gr[x+3][y+3]==naux && gr[x+4][y+4]==aux)
+						{
+							gagnant = aux;
+							return true;
+						}
+	        }
+	      }
+
+	//test victoire diagonale gauche
+	    for(x=0; x<4; x++)
+	      for(y=4; y<NDIMia; y++)
+	      {
+	        if(gr[x][y]==1 || gr[x][y]==2)
+	        {
+	          aux = gr[x][y];
+
+	          switch(aux)
+	          {
+	            case 1 :
+	              naux = 2;
+	              break;
+	            case 2 :
+	              naux = 1;
+	              break;
+	            default :
+	              break;
+	          }
+
+	          if(gr[x+1][y-1]==naux && gr[x+2][y-2]==naux && gr[x+3][y-3]==naux && gr[x+4][y-4]==aux)
+						{
+							gagnant = aux;
+							return true;
+						}
+	        }
+	      }
+
+
     return false;
 }
 
@@ -247,7 +388,10 @@ bool ligne(const Grille &gr, int &gagnant)
 bool victoireDe(const Grille& gr, int &gagnant)
 {
   if(carre(gr, gagnant) || ligne(gr, gagnant))
+	{
+		//afficherPlateau(gr);
     return true;
+	}
   return false;
 }
 
@@ -278,16 +422,16 @@ bool plateauBloque(const Grille& gr)
 
 }
 
-
 /**
-	Lance le jeu
+	Le jeu
 */
-int main(int argc, char** argv)
+void neomix()
 {
-  Grille gr;
+	Grille gr;
   int quiJoue = 1;
   int gagnant = 0;
   bool finJeu = false;
+	int typePartie;
 
   Case pion;
   pion.x = -2;
@@ -297,12 +441,19 @@ int main(int argc, char** argv)
   afficherPlateau(gr);
   initCasesJouables(gr);
 
+	cout << "Choisissez le type de partie :" << endl;
+	cout << "		1) Ordinateur contre Ordinateur" << endl;
+	cout << "		2) Ordianteur contre joueur" << endl;
+	cout << "		3) Joueur contre joueur" << endl;
+	cin >> typePartie;
+
   while(finJeu == false)
   {
 
-    jouer(quiJoue, gr, pion);
+    jouer(quiJoue, gr, pion, typePartie);
     if(victoireDe(gr, gagnant))
     {
+			afficherPlateau(gr);
       cout << gagnant << " à gagné !" << endl;
       finJeu = true;
     }
@@ -315,6 +466,15 @@ int main(int argc, char** argv)
     {
       quiJoue = joueurSuivant(quiJoue);
     }
+
   }
+}
+
+/**
+	Lance le jeu
+*/
+int main(int argc, char** argv)
+{
+	neomix();
 	return 0;
 }
